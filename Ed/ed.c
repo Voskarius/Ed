@@ -3,18 +3,40 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+
+#include <stdbool.h> 
 #include <sys/queue.h>
 
-#define	BUFLEN 1024
+#if __STDC_VERSION__ < 199901L
+#error "You need C99 compiler or greater."
+#endif
+
+#define	BUFLEN 1024	
 
 struct Line {
 	char* line;
-	LIST_ENTRY(Line) pointers;
-};
+	TAILQ_ENTRY(Line) pointers;
+} *lineIt;
 
 struct File {
-    LIST_HEAD(line_list, Line) lineList;
+    TAILQ_HEAD(line_list, Line) lineList;
 } file;
+
+bool printErrors = false;
+
+int lines = 0;
+int currentLine = 0;
+
+char * lastError = NULL;
+
+char *strdup(const char *s) {
+    size_t size = strlen(s) + 1;
+    char *p = malloc(size);
+    if (p != NULL) {
+        memcpy(p, s, size);
+    }
+    return p;
+}
 
 int main(int argc, char *argv[])
 {
@@ -35,34 +57,38 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	
-	LIST_INIT(&file.lineList);
+	TAILQ_INIT(&file.lineList);
 
-	size_t n;
 	FILE *f;
-	char line[BUFLEN];
-
+	char buffer[BUFLEN];
+	
 	if ((f = fopen(argv[1], "r")) == NULL) {
 		fprintf(stderr, "fopen");
 	}
-
-	while ((n = fread(line, 1, BUFLEN, f)) > 0) {
+	
+	while (fgets(buffer, sizeof(buffer), f) != NULL) {
 		struct Line *item = malloc(sizeof(struct Line));
+		item->line = strdup(buffer);
 
-		LIST_INSERT_HEAD(&file.lineList, item, pointers);
+		TAILQ_INSERT_TAIL(&file.lineList, item, pointers);
+		
+		++lines;
 		if (feof(f)) {
 			break;
 		}
 	}
+	
+	currentLine = lines;
 
 	if (fclose(f) == EOF) {
 		fprintf(stderr, "fclose f");
 	}
 	
-	struct Line * lineIt = NULL;
-	
+	int i = 0;
+
 	// TODO remove
-	LIST_FOREACH(lineIt, &file.lineList, pointers) {
-		printf(line);
+	TAILQ_FOREACH(lineIt, &file.lineList, pointers) {
+		printf("%d %s", i++, lineIt->line);
 	}
 	
     return 0;
