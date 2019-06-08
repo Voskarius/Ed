@@ -29,8 +29,9 @@ int currentLine = 0;
 
 char * lastError = NULL;
 
-char *strdup(const char *s) {
-    size_t size = strlen(s) + 1;
+char *strdup(const char *s)
+{
+	size_t size = strlen(s) + 1;
     char *p = malloc(size);
     if (p != NULL) {
         memcpy(p, s, size);
@@ -38,23 +39,12 @@ char *strdup(const char *s) {
     return p;
 }
 
-int main(int argc, char *argv[])
+bool loadFile(char*  fileName)
 {
-	if (argc < 2) {
-		fprintf(stderr,"ed: not enough arguments\nusage: ed file");			
-		return 1;
-	}
-
-	char* fileName = argv[1];
-	if (fileName[0] == '-') {
-		fprintf(stderr, "ed: illegal option -- %s\nusage: ed file", fileName[1] + "");
-		return 1;
-	}
-	
 	FILE * fileStream = fopen(fileName, "r");
 	if (!fileStream) {
 		fprintf(stderr, "%s", strerror(errno));
-		return 1;
+		return false;
 	}
 	
 	TAILQ_INIT(&file.lineList);
@@ -62,7 +52,7 @@ int main(int argc, char *argv[])
 	FILE *f;
 	char buffer[BUFLEN];
 	
-	if ((f = fopen(argv[1], "r")) == NULL) {
+	if ((f = fopen(fileName, "r")) == NULL) {
 		fprintf(stderr, "fopen");
 	}
 	
@@ -79,11 +69,31 @@ int main(int argc, char *argv[])
 	}
 	
 	currentLine = lines;
-
+	
 	if (fclose(f) == EOF) {
 		fprintf(stderr, "fclose f");
 	}
 	
+	return true;
+}	
+
+int main(int argc, char *argv[])
+{
+	if (argc < 2) {
+		fprintf(stderr,"ed: not enough arguments\nusage: ed file");			
+		return 1;
+	}
+
+	char* fileName = argv[1];
+	if (fileName[0] == '-') {
+		fprintf(stderr, "ed: illegal option -- %s\nusage: ed file", fileName[1] + "");
+		return 1;
+	}
+	
+	if (!loadFile(fileName)) {
+		return 1;
+	}
+
 	int i = 0;
 
 	// TODO remove
