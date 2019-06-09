@@ -58,12 +58,6 @@ bool
 loadFile(char * fileName)
 {
 	int totalLen = 0;
-	FILE * fileStream = fopen(fileName, "r");
-	if (!fileStream) {
-		fprintf(stderr, "%s: %s\nCannot open input file\n",
-			fileName, strerror(errno));
-		return (false);
-	}
 
 	TAILQ_INIT(&file.lineList);
 
@@ -71,7 +65,9 @@ loadFile(char * fileName)
 	char buffer[BUFLEN];
 
 	if ((f = fopen(fileName, "r")) == NULL) {
-		fprintf(stderr, "fopen");
+		fprintf(stderr, "%s: %s\nCannot open input file\n",
+			fileName, strerror(errno));
+		return (false);
 	}
 
 	while (fgets(buffer, sizeof (buffer), f) != NULL) {
