@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
-
 #include <stdbool.h>
 #include <sys/queue.h>
 
@@ -14,8 +13,7 @@
 #define	BUFLEN 1024
 #define	COMMAND_LEN 128
 
-// file structure
-
+// file structures
 struct Line {
 	char * line;
 	TAILQ_ENTRY(Line) pointers;
