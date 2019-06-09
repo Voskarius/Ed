@@ -131,6 +131,10 @@ toAbsoluteAddress(char * addrStr)
 	}
 
 	int addr = atoi(addrStr);
+	if (addr && strchr(addrStr, '.') != NULL) { // discard decimal numbers
+		return (0);
+	}
+
 	if (!addr && (len == 1 || isspace(addrStr[1]))) {
 		switch (addrStr[0]) {
 			case '.':
