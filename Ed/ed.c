@@ -1,3 +1,6 @@
+// NPRG066 - Zapocet - phase 1
+// Oskar Hybl
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
