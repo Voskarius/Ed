@@ -14,6 +14,8 @@
 #define	BUFLEN 1024
 #define	COMMAND_LEN 128
 
+// file structure
+
 struct Line {
 	char * line;
 	TAILQ_ENTRY(Line) pointers;
@@ -33,13 +35,14 @@ char * lastError = NULL;
 bool
 isEmpty(const char * s)
 {
-	while(isspace((unsigned char) *s)) {
+	while (isspace((unsigned char) *s)) {
 		s++;
 	}
-	
+
 	return (*s == '\0');
 }
 
+// strdup is non-standard - reimplemented here
 char *
 strdup(const char *s)
 {
@@ -57,7 +60,8 @@ loadFile(char * fileName)
 	int totalLen = 0;
 	FILE * fileStream = fopen(fileName, "r");
 	if (!fileStream) {
-		fprintf(stderr, "%s", strerror(errno));
+		fprintf(stderr, "%s: %s\nCannot open input file\n",
+			fileName, strerror(errno));
 		return (false);
 	}
 
@@ -71,20 +75,24 @@ loadFile(char * fileName)
 	}
 
 	while (fgets(buffer, sizeof (buffer), f) != NULL) {
+		// add line to list
 		struct Line *item = malloc(sizeof (struct Line));
 		item->line = strdup(buffer);
 
 		totalLen += strlen(item->line);
-		
+
 		TAILQ_INSERT_TAIL(&file.lineList, item, pointers);
+
+		// keep pointer to the last line
 		currentIt = item;
-		
+
 		++lines;
 		if (feof(f)) {
 			break;
 		}
 	}
 
+	// set currentLine index to the last line
 	currentLine = lines;
 
 	if (fclose(f) == EOF) {
@@ -113,17 +121,8 @@ handleError(char * error)
 	}
 }
 
-bool
-checkEmptyAddress(char * address)
-{
-	if (!isEmpty(address)) {
-		handleError("Unexpected address");
-		return (false);
-	}
-
-	return (true);
-}
-
+// parses address string and convert to line index
+// expects a single address, not range, i.e. ".,20"
 int
 toAbsoluteAddress(char * addrStr)
 {
@@ -134,7 +133,7 @@ toAbsoluteAddress(char * addrStr)
 	if (len > 0 && isspace(addrStr[0])) {
 		return (0); // no leading space allowed
 	}
-	
+
 	int addr = atoi(addrStr);
 	if (!addr && (len == 1 || isspace(addrStr[1]))) {
 		switch (addrStr[0]) {
@@ -146,7 +145,7 @@ toAbsoluteAddress(char * addrStr)
 				return (0);
 		}
 	}
-	
+
 	if (addr < 0) {
 		return (currentLine + addr);
 	} else {
@@ -154,6 +153,8 @@ toAbsoluteAddress(char * addrStr)
 	}
 }
 
+// parses full address string and assigns indeces to from and to vars
+// returns true if string was a valid address, false otherwise
 bool
 parseAddress(char * address, int * from, int * to)
 {
@@ -164,15 +165,12 @@ parseAddress(char * address, int * from, int * to)
 		char *toStr;
 		fromStr = strtok(address, ",");
 		toStr = strtok(NULL, ",");
-				
+
 		*from = toAbsoluteAddress(fromStr);
 		*to = toAbsoluteAddress(toStr);
 	}
-	
-	// printf("(%d) (%d) cur(%d)\n", *from, *to, currentLine);
-		
+
 	if (!*from || !*to || *from > *to || *from > lines || *to > lines) {
-		handleError("Invalid address");
 		return (false);
 	}
 
@@ -189,6 +187,7 @@ printCurrentLine()
 	}
 }
 
+// sets current line index and pointer to the specified line
 void
 setCurrentLine(int lineNumber)
 {
@@ -199,22 +198,25 @@ setCurrentLine(int lineNumber)
 			currentLine = i;
 			return;
 		}
-		
+
 		++i;
 	}
 }
 
+// moves current line index and pointer to the next line
 void
 setNextLine()
 {
 	if (currentLine > lines) {
 		return;
 	}
-	
+
 	currentIt = TAILQ_NEXT(currentIt, pointers);
 	++currentLine;
 }
 
+// prints all lines between from and to indeces (inclusive)
+// optionally adds line numbers
 void
 printRange(int from, int to, bool withLineNumbers)
 {
@@ -223,81 +225,104 @@ printRange(int from, int to, bool withLineNumbers)
 		printf("%d\t", from);
 	}
 	printCurrentLine();
-	
+
 	for (int i = from + 1; i <= to; ++i) {
 		setNextLine();
 		if (withLineNumbers) {
 			printf("%d\t", i);
 		}
-		
+
 		printCurrentLine();
 	}
 }
 
+// parses and validated command string
+// executes command if valid
 void
 processCommand(char * inputStr)
 {
 	char command;
 	char address[COMMAND_LEN] = "";
-	
+
 	char commandStr[COMMAND_LEN] = "";
 	char suffix[COMMAND_LEN] = "";
-	
-	int count = sscanf(inputStr, "%[^qhHnp%]%c%s", address, commandStr, suffix);
-	
+
+	int count = sscanf(inputStr, "%[^a-zA-Z%]%c%s",
+		address, commandStr, suffix);
+
 	if (count == 0) {
 		count = sscanf(inputStr, "%c%s", commandStr, suffix);
 	}
-	
-	command = commandStr[0];
-	//printf("addr (%s), command(%s) suffix(%s) count(%d)\n", address, commandStr, suffix, count);
 
+	command = commandStr[0];
 	bool invalidSuffix = !isEmpty(suffix);
-	
+
 	int addrFrom;
 	int addrTo;
-	
+
+	bool unexpectedAddress = false;
+	bool invalidAddress = false;
+
 	if (command == 0) {
+		// just <enter> detected - print next line
 		if (isEmpty(address)) {
 			setNextLine();
 			printCurrentLine();
 			return;
 		} else if (!parseAddress(address, &addrFrom, &addrTo)) {
+			handleError("Invalid address");
 			return;
 		}
-		
+
 		printRange(addrFrom, addrTo, false);
 		return;
-	} else {	
+	} else {
+		// validate input
+		invalidAddress = !isEmpty(address) &&
+			!parseAddress(address, &addrFrom, &addrTo);
+		if (invalidAddress) {
+			handleError("Invalid address");
+			return;
+		}
+
+		// validate command code
 		switch (command) {
 			case 'q':
 			case 'h':
 			case 'H':
-				if (!checkEmptyAddress(address)) {
-					return;
+				if (!isEmpty(address)) {
+					unexpectedAddress = true;
 				}
 
 				break;
-				
+
 			case 'n':
 			case 'p':
-				if (!parseAddress(address, &addrFrom, &addrTo)) {
-					return;
-				}
-
 				break;
-			
+
 			default:
 				handleError("Unknown command");
 				return;
 		}
 	}
 
+	// print errors with the expected priority
+	if (invalidAddress) {
+		handleError("Invalid address");
+		return;
+	}
+
 	if (invalidSuffix) {
 		handleError("Invalid command suffix");
 		return;
 	}
-	
+
+	if (unexpectedAddress) {
+		handleError("Unexpected address");
+		return;
+	}
+
+	// execute command
 	switch (command) {
 		case 'q':
 			exit(0);
@@ -311,11 +336,11 @@ processCommand(char * inputStr)
 			printErrors = !printErrors;
 			printLastError();
 			break;
-		
+
 		case 'n':
 			printRange(addrFrom, addrTo, true);
 			break;
-			
+
 		case 'p':
 			printRange(addrFrom, addrTo, false);
 			break;
@@ -337,29 +362,19 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	if (!loadFile(fn)) {
-		return (1);
-	}
-
+	// continue even if load fails - list is empty
+	loadFile(fn);
 
 	for (;;) {
 		char input[COMMAND_LEN];
 		if (!fgets(input, BUFLEN, stdin)) {
 			break;
 		}
-		
-		char * cmd = strdup(input);
-		if (strlen(cmd) > 0) {
-			processCommand(cmd);
+
+		if (strlen(input) > 0) {
+			processCommand(input);
 		}
 	}
-
-	//int i = 0;
-
-	// TODO remove
-	/*TAILQ_FOREACH(lineIt, &file.lineList, pointers) {
-		printf("%d %s", i++, lineIt->line);
-	}*/
 
 	return (lastError == NULL ? 0 : 1);
 }
