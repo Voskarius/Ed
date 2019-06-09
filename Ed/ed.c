@@ -127,20 +127,23 @@ checkEmptyAddress(char * address)
 int
 toAbsoluteAddress(char * addrStr)
 {
+	if (addrStr == NULL || isEmpty(addrStr)) {
+		return (0);
+	}
 	int len = strlen(addrStr);
 	if (len > 0 && isspace(addrStr[0])) {
 		return (0); // no leading space allowed
 	}
 	
 	int addr = atoi(addrStr);
-	if (!addr && len == 1) {
+	if (!addr && (len == 1 || isspace(addrStr[1]))) {
 		switch (addrStr[0]) {
 			case '.':
-				return currentLine;
+				return (currentLine);
 			case '$':
-				return lines;
+				return (lines);
 			default:
-				return 0;
+				return (0);
 		}
 	}
 	
@@ -154,9 +157,7 @@ toAbsoluteAddress(char * addrStr)
 bool
 parseAddress(char * address, int * from, int * to)
 {
-	if (strlen(address) == 0) {
-		*from = *to = currentLine;
-	} else if (strchr(address, ',') == NULL) {
+	if (strchr(address, ',') == NULL) {
 		*from = *to = toAbsoluteAddress(address);
 	} else {
 		char *fromStr;
@@ -168,7 +169,7 @@ parseAddress(char * address, int * from, int * to)
 		*to = toAbsoluteAddress(toStr);
 	}
 	
-	//printf("(%d) (%d)\n", *from, *to);
+	// printf("(%d) (%d) cur(%d)\n", *from, *to, currentLine);
 		
 	if (!*from || !*to || *from > *to || *from > lines || *to > lines) {
 		handleError("Invalid address");
@@ -181,7 +182,11 @@ parseAddress(char * address, int * from, int * to)
 void
 printCurrentLine()
 {
-	
+	if (currentLine > 0 && currentLine <= lines) {
+		printf("%s", currentIt->line);
+	} else {
+		handleError("Invalid address");
+	}
 }
 
 void
@@ -191,10 +196,41 @@ setCurrentLine(int lineNumber)
 	TAILQ_FOREACH(lineIt, &file.lineList, pointers) {
 		if (i == lineNumber) {
 			currentIt = lineIt;
-			puts(currentIt->line);
+			currentLine = i;
 			return;
 		}
+		
 		++i;
+	}
+}
+
+void
+setNextLine()
+{
+	if (currentLine > lines) {
+		return;
+	}
+	
+	currentIt = TAILQ_NEXT(currentIt, pointers);
+	++currentLine;
+}
+
+void
+printRange(int from, int to, bool withLineNumbers)
+{
+	setCurrentLine(from);
+	if (withLineNumbers) {
+		printf("%d\t", from);
+	}
+	printCurrentLine();
+	
+	for (int i = from + 1; i <= to; ++i) {
+		setNextLine();
+		if (withLineNumbers) {
+			printf("%d\t", i);
+		}
+		
+		printCurrentLine();
 	}
 }
 
@@ -222,11 +258,15 @@ processCommand(char * inputStr)
 	int addrTo;
 	
 	if (command == 0) {
-		if (!parseAddress(address, &addrFrom, &addrTo)) {
+		if (isEmpty(address)) {
+			setNextLine();
+			printCurrentLine();
+			return;
+		} else if (!parseAddress(address, &addrFrom, &addrTo)) {
 			return;
 		}
 		
-		setCurrentLine(addrTo);
+		printRange(addrFrom, addrTo, false);
 		return;
 	} else {	
 		switch (command) {
@@ -246,7 +286,10 @@ processCommand(char * inputStr)
 				}
 
 				break;
-				
+			
+			default:
+				handleError("Unknown command");
+				return;
 		}
 	}
 
@@ -270,14 +313,11 @@ processCommand(char * inputStr)
 			break;
 		
 		case 'n':
+			printRange(addrFrom, addrTo, true);
 			break;
 			
 		case 'p':
-		
-			break;
-
-		default:
-			puts("def");
+			printRange(addrFrom, addrTo, false);
 			break;
 	}
 }
@@ -301,22 +341,25 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	char input[COMMAND_LEN];
 
 	for (;;) {
-		scanf("%[^\n]%*c", input);
-
-		if (strlen(input) > 0) {
-			processCommand(input);
+		char input[COMMAND_LEN];
+		if (!fgets(input, BUFLEN, stdin)) {
+			break;
+		}
+		
+		char * cmd = strdup(input);
+		if (strlen(cmd) > 0) {
+			processCommand(cmd);
 		}
 	}
 
-	int i = 0;
+	//int i = 0;
 
 	// TODO remove
-	TAILQ_FOREACH(lineIt, &file.lineList, pointers) {
+	/*TAILQ_FOREACH(lineIt, &file.lineList, pointers) {
 		printf("%d %s", i++, lineIt->line);
-	}
+	}*/
 
-	return (0);
+	return (lastError == NULL ? 0 : 1);
 }
