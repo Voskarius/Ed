@@ -250,6 +250,8 @@ deleteRange(int from, int to)
 		totalLen -= strlen(currentIt->line);
 		setNextLine();
 		TAILQ_REMOVE(&file.lineList, toDelete, pointers);
+		free(toDelete->line);
+		free(toDelete);
 		lines--;
 	}
 
