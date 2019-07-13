@@ -20,13 +20,15 @@
 struct Line {
 	char * line;
 	TAILQ_ENTRY(Line) pointers;
-} *lineIt, *currentIt;
+} *lineIt, *currentIt, *toDelete;
 
 struct File {
     TAILQ_HEAD(line_list, Line) lineList;
 } file;
 
 bool printErrors = false;
+bool bufferModified = false;
+bool triedToQuit = false;
 
 int lines = 0;
 int currentLine = 0;
@@ -238,6 +240,21 @@ printRange(int from, int to, bool withLineNumbers)
 }
 
 void
+deleteRange(int from, int to)
+{
+	setCurrentLine(from);
+
+	for (int i = from; i <= to; ++i) {
+		toDelete = currentIt;
+		setNextLine();
+		TAILQ_REMOVE(&file.lineList, toDelete, pointers);
+		lines--;
+	}
+	
+	bufferModified = true;
+}
+
+void
 initInsertMode(int addr)
 {	
 	bool insertingHead = false;
@@ -255,7 +272,7 @@ initInsertMode(int addr)
 		printf("inserting  (%s)", buffer);
 		
 		if (strcmp(buffer, ".\n") == 0) {
-			printf("ending");
+			bufferModified = true;
 			return;
 		}
 
@@ -264,7 +281,6 @@ initInsertMode(int addr)
 		
 		if (insertingHead) {
 			// insert as the new first line
-			printf("TADY");
 			TAILQ_INSERT_HEAD(&file.lineList, item, pointers);
 			insertingHead = false;
 		} else {
@@ -303,6 +319,7 @@ processCommand(char * inputStr)
 
 	bool unexpectedAddress = false;
 	bool invalidAddress = false;
+	
 
 	if (command == 0) {
 		// just <enter> detected - print next line
@@ -341,6 +358,7 @@ processCommand(char * inputStr)
 
 			case 'n':
 			case 'p':
+			case 'd':
 				break;
 			
 			case 'i':
@@ -375,7 +393,14 @@ processCommand(char * inputStr)
 	// execute command
 	switch (command) {
 		case 'q':
-			exit(0);
+			if (bufferModified) {
+				if (triedToQuit) {
+					exit(0);
+				}
+				handleError("Warning: buffer modified");
+			} else {			
+				exit(0);
+			}
 			break;
 
 		case 'h':
@@ -394,11 +419,17 @@ processCommand(char * inputStr)
 		case 'p':
 			printRange(addrFrom, addrTo, false);
 			break;
-		
+			
+		case 'd':
+			deleteRange(addrFrom, addrTo);
+			break;
+			
 		case 'i':
 			initInsertMode(addrFrom);
 			break;
 	}
+	
+	triedToQuit = command == 'q';
 }
 
 int
