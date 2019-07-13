@@ -252,6 +252,8 @@ deleteRange(int from, int to)
 		lines--;
 	}
 	
+	setCurrentLine(from > lines ? lines : from);
+	
 	bufferModified = true;
 }
 
@@ -283,8 +285,10 @@ initInsertMode(int addr)
 			// insert as the new first line
 			TAILQ_INSERT_HEAD(&file.lineList, item, pointers);
 			insertingHead = false;
+			currentLine = 1;
 		} else {
 			TAILQ_INSERT_AFTER(&file.lineList, currentIt, item, pointers);
+			++currentLine;
 		}
 		
 		// keep pointer to the last line
@@ -355,6 +359,9 @@ processCommand(char * inputStr)
 			setNextLine();
 			printCurrentLine();
 			return;
+		} else if (command == 'i' && strcmp(address, "0") == 0) {
+			// exception for 'i' command which is the only one accepting 0 as address (same behaviour as 1)
+			addrFrom = 0;
 		} else if (!parseAddress(address, &addrFrom, &addrTo)) {
 			handleError("Invalid address");
 			return;
@@ -426,7 +433,7 @@ processCommand(char * inputStr)
 		case 'q':
 			if (bufferModified) {
 				if (triedToQuit) {
-					exit(0);
+					exit(1);
 				}
 				handleError("Warning: buffer modified");
 			} else {			
