@@ -237,6 +237,46 @@ printRange(int from, int to, bool withLineNumbers)
 	}
 }
 
+void
+initInsertMode(int addr)
+{	
+	bool insertingHead = false;
+	printf("insert at %d", addr);
+	// insert new lines before addr == after addr - 1
+	// inserting at start won't need (and cannot have) currentLine set to 0
+	if (addr > 1){
+		setCurrentLine(addr - 1);
+	} else {
+		insertingHead = true;
+	}		
+	
+	char buffer[BUFLEN];
+	while (fgets(buffer, sizeof (buffer), stdin) != NULL) {
+		printf("inserting  (%s)", buffer);
+		
+		if (strcmp(buffer, ".\n") == 0) {
+			printf("ending");
+			return;
+		}
+
+		struct Line *item = malloc(sizeof (struct Line));
+		item->line = strdup(buffer);
+		
+		if (insertingHead) {
+			// insert as the new first line
+			printf("TADY");
+			TAILQ_INSERT_HEAD(&file.lineList, item, pointers);
+			insertingHead = false;
+		} else {
+			TAILQ_INSERT_AFTER(&file.lineList, currentIt, item, pointers);
+		}
+		
+		// keep pointer to the last line
+		currentIt = item;
+		++lines;
+	}
+}
+
 // parses and validated command string
 // executes command if valid
 void
@@ -285,7 +325,9 @@ processCommand(char * inputStr)
 			handleError("Invalid address");
 			return;
 		}
-
+		
+		bool singlePartAddr;
+		
 		// validate command code
 		switch (command) {
 			case 'q':
@@ -300,7 +342,14 @@ processCommand(char * inputStr)
 			case 'n':
 			case 'p':
 				break;
-
+			
+			case 'i':
+				singlePartAddr = (strchr(address, ',') == 0);
+				if (!singlePartAddr) {
+					handleError("Unknown command");
+				}
+				break;
+				
 			default:
 				handleError("Unknown command");
 				return;
@@ -345,6 +394,10 @@ processCommand(char * inputStr)
 		case 'p':
 			printRange(addrFrom, addrTo, false);
 			break;
+		
+		case 'i':
+			initInsertMode(addrFrom);
+			break;
 	}
 }
 
@@ -368,7 +421,7 @@ main(int argc, char *argv[])
 
 	for (;;) {
 		char input[COMMAND_LEN];
-		if (!fgets(input, BUFLEN, stdin)) {
+		if (!fgets(input, COMMAND_LEN, stdin)) {
 			break;
 		}
 
