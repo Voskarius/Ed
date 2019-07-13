@@ -239,6 +239,7 @@ printRange(int from, int to, bool withLineNumbers)
 	}
 }
 
+// delete lines no. [from, to]
 void
 deleteRange(int from, int to)
 {
@@ -251,25 +252,28 @@ deleteRange(int from, int to)
 		TAILQ_REMOVE(&file.lineList, toDelete, pointers);
 		lines--;
 	}
-	
+
 	setCurrentLine(from > lines ? lines : from);
-	
+
 	bufferModified = true;
 }
 
+// enters insert mode.
+// new lines will be prepended to line addr addr
+// exit edit mode by typing line containing a single dot (".") only
 void
 initInsertMode(int addr)
-{	
+{
 	bool insertingHead = false;
-	
+
 	// insert new lines before addr == after addr - 1
 	// inserting at start won't need (and cannot have) currentLine set to 0
-	if (addr > 1){
+	if (addr > 1) {
 		setCurrentLine(addr - 1);
 	} else {
 		insertingHead = true;
-	}		
-	
+	}
+
 	char buffer[BUFLEN];
 	while (fgets(buffer, sizeof (buffer), stdin) != NULL) {
 		if (strcmp(buffer, ".\n") == 0) {
@@ -280,30 +284,32 @@ initInsertMode(int addr)
 		struct Line *item = malloc(sizeof (struct Line));
 		item->line = strdup(buffer);
 		totalLen += strlen(item->line);
-		
+
 		if (insertingHead) {
 			// insert as the new first line
 			TAILQ_INSERT_HEAD(&file.lineList, item, pointers);
 			insertingHead = false;
 			currentLine = 1;
 		} else {
-			TAILQ_INSERT_AFTER(&file.lineList, currentIt, item, pointers);
+			TAILQ_INSERT_AFTER(&file.lineList, currentIt,
+				item, pointers);
 			++currentLine;
 		}
-		
+
 		// keep pointer to the last line
 		currentIt = item;
 		++lines;
 	}
 }
 
+// dumps currently loaded text to file "target"
+// if no default file is set, sets the default to "target"
 void
 writeFile(char * target)
 {
 	printf("%d\n", totalLen);
 	FILE * fp = fopen(target, "w");
-	if (fp == NULL)
-	{
+	if (fp == NULL) {
 		handleError("Cannot open output file");
 		return;
 	}
@@ -311,7 +317,7 @@ writeFile(char * target)
 	TAILQ_FOREACH(lineIt, &file.lineList, pointers) {
 		fprintf(fp, "%s", lineIt->line);
 	}
-	
+
 	bufferModified = false;
 
 	if (fileName == NULL) {
@@ -322,13 +328,13 @@ writeFile(char * target)
 }
 
 char *
-truncateWhitespace(char* s) {
+truncateWhitespace(char * s) {
 	int startId = 0;
 	while (isspace(s[0])) {
 		startId++;
 	}
-	
-	return &s[startId];
+
+	return (&s[startId]);
 }
 
 // parses and validated command string
@@ -350,7 +356,15 @@ processCommand(char * inputStr)
 	}
 
 	command = commandStr[0];
+	char * cmdPtr = strchr(inputStr, command);
+
 	bool invalidSuffix = command != 'w' && !isEmpty(suffix);
+
+	// check if 'w' is followed by a space
+	if (command == 'w' && !isspace(*(cmdPtr + 1))) {
+		handleError("Unexpected command suffix");
+		return;
+	}
 
 	int addrFrom;
 	int addrTo;
@@ -385,9 +399,9 @@ processCommand(char * inputStr)
 				return;
 			}
 		}
-		
+
 		bool singlePartAddr;
-		
+
 		// validate command code
 		switch (command) {
 			case 'q':
@@ -399,19 +413,19 @@ processCommand(char * inputStr)
 				}
 
 				break;
-				
+
 			case 'n':
 			case 'p':
 			case 'd':
 				break;
-			
+
 			case 'i':
 				singlePartAddr = (strchr(address, ',') == 0);
 				if (!singlePartAddr) {
 					handleError("Unknown command");
 				}
 				break;
-				
+
 			default:
 				handleError("Unknown command");
 				return;
@@ -433,9 +447,9 @@ processCommand(char * inputStr)
 		handleError("Unexpected address");
 		return;
 	}
-	
+
 	char * targetName = NULL;
-	
+
 	// execute command
 	switch (command) {
 		case 'q':
@@ -444,8 +458,8 @@ processCommand(char * inputStr)
 					exit(1);
 				}
 				handleError("Warning: buffer modified");
-			} else {			
-				exit(0);
+			} else {
+				exit(lastError == NULL ? 0 : 1);
 			}
 			break;
 
@@ -465,15 +479,15 @@ processCommand(char * inputStr)
 		case 'p':
 			printRange(addrFrom, addrTo, false);
 			break;
-			
+
 		case 'd':
 			deleteRange(addrFrom, addrTo);
 			break;
-			
+
 		case 'i':
 			initInsertMode(addrFrom);
 			break;
-		
+
 		case 'w':
 			targetName = truncateWhitespace(suffix);
 			if (strlen(targetName) == 0) {
@@ -483,11 +497,11 @@ processCommand(char * inputStr)
 				}
 				targetName = fileName;
 			}
-			
+
 			writeFile(targetName);
 			break;
 	}
-	
+
 	triedToQuit = command == 'q';
 }
 
@@ -498,7 +512,8 @@ main(int argc, char *argv[])
 		fileName = argv[1];
 		if (fileName[0] == '-') {
 			fprintf(stderr,
-				"ed: illegal option -- %s\nusage: ed file", &fileName[1]);
+				"ed: illegal option -- %s\nusage: ed file",
+				&fileName[1]);
 			return (1);
 		}
 
