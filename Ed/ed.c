@@ -1,4 +1,4 @@
-// NPRG066 - Zapocet - phase 1
+// NPRG066 - Zapocet - phase 1 + 2
 // Oskar Hybl
 
 #include <stdio.h>
