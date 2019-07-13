@@ -313,6 +313,12 @@ writeFile(char * target)
 	}
 	
 	bufferModified = false;
+
+	if (fileName == NULL) {
+		fileName = strdup(target);
+	}
+
+	fclose(fp);
 }
 
 char *
@@ -351,7 +357,6 @@ processCommand(char * inputStr)
 
 	bool unexpectedAddress = false;
 	bool invalidAddress = false;
-	
 
 	if (command == 0) {
 		// just <enter> detected - print next line
@@ -359,9 +364,6 @@ processCommand(char * inputStr)
 			setNextLine();
 			printCurrentLine();
 			return;
-		} else if (command == 'i' && strcmp(address, "0") == 0) {
-			// exception for 'i' command which is the only one accepting 0 as address (same behaviour as 1)
-			addrFrom = 0;
 		} else if (!parseAddress(address, &addrFrom, &addrTo)) {
 			handleError("Invalid address");
 			return;
@@ -371,11 +373,17 @@ processCommand(char * inputStr)
 		return;
 	} else {
 		// validate input
-		invalidAddress = !isEmpty(address) &&
-			!parseAddress(address, &addrFrom, &addrTo);
-		if (invalidAddress) {
-			handleError("Invalid address");
-			return;
+		if (command == 'i' && strcmp(address, "0") == 0) {
+			// exception for 'i' command which is the only one
+			// accepting 0 as address (same behaviour as 1)
+			addrFrom = 0;
+		} else {
+			invalidAddress = !isEmpty(address) &&
+				!parseAddress(address, &addrFrom, &addrTo);
+			if (invalidAddress) {
+				handleError("Invalid address");
+				return;
+			}
 		}
 		
 		bool singlePartAddr;
@@ -486,20 +494,18 @@ processCommand(char * inputStr)
 int
 main(int argc, char *argv[])
 {
-	if (argc < 2) {
-		fprintf(stderr, "ed: not enough arguments\nusage: ed file");
-		return (1);
+	if (argc > 1) {
+		fileName = argv[1];
+		if (fileName[0] == '-') {
+			fprintf(stderr,
+				"ed: illegal option -- %s\nusage: ed file", &fileName[1]);
+			return (1);
+		}
+
+		// continue even if load fails - list is empty
+		loadFile(fileName);
 	}
 
-	fileName = argv[1];
-	if (fileName[0] == '-') {
-		fprintf(stderr,
-			"ed: illegal option -- %s\nusage: ed file", &fileName[1]);
-		return (1);
-	}
-
-	// continue even if load fails - list is empty
-	loadFile(fileName);
 
 	for (;;) {
 		char input[COMMAND_LEN];
