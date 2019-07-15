@@ -16,6 +16,9 @@
 #define	BUFLEN 1024
 #define	COMMAND_LEN 128
 
+extern char *strtok_r(char *, const char *, char **);
+extern char *strdup(const char *s);
+
 // file structures
 struct Line {
 	char * line;
@@ -47,18 +50,6 @@ isEmpty(const char * s)
 	return (*s == '\0');
 }
 
-// strdup is non-standard - reimplemented here
-char *
-strdup(const char *s)
-{
-	size_t size = strlen(s) + 1;
-	char *p = malloc(size);
-	if (p != NULL) {
-		memcpy(p, s, size);
-	}
-	return (p);
-}
-
 bool
 loadFile(char * fileName)
 {
@@ -76,7 +67,17 @@ loadFile(char * fileName)
 	while (fgets(buffer, sizeof (buffer), f) != NULL) {
 		// add line to list
 		struct Line *item = malloc(sizeof (struct Line));
+		if (item == NULL) {
+			perror("Cannot load file");
+			exit(1);
+		}
+
 		item->line = strdup(buffer);
+		if (item->line == NULL) {
+			perror("Cannot load file");
+			free(item);
+			exit(1);
+		}
 
 		totalLen += strlen(item->line);
 
@@ -166,8 +167,9 @@ parseAddress(char * address, int * from, int * to)
 	} else {
 		char *fromStr;
 		char *toStr;
-		fromStr = strtok(address, ",");
-		toStr = strtok(NULL, ",");
+		char *savePtr;
+		fromStr = strtok_r(address, ",", &savePtr);
+		toStr = strtok_r(NULL, ",", &savePtr);
 
 		*from = toAbsoluteAddress(fromStr);
 		*to = toAbsoluteAddress(toStr);
@@ -284,7 +286,18 @@ initInsertMode(int addr)
 		}
 
 		struct Line *item = malloc(sizeof (struct Line));
+		if (item == NULL) {
+			perror("Cannot insert new line");
+			return;
+		}
+
 		item->line = strdup(buffer);
+		if (item->line == NULL) {
+			perror("Cannot insert new line");
+			free(item);
+			return;
+		}
+
 		totalLen += strlen(item->line);
 
 		if (insertingHead) {
